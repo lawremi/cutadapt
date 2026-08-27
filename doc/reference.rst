@@ -180,6 +180,13 @@ Adapter-finding options
 ``--no-indels`` (default: allow indels)
     Do not allow insertions and deletions when matching adapters against reads.
 
+``--matching-policy {cutadapt,matches}`` (default: ``cutadapt``)
+    Select the adapter alignment and selection policy. The ``cutadapt`` policy
+    preserves the standard scoring and tie-breaking behavior. The ``matches``
+    policy maximizes matching bases and keeps the first adapter when multiple
+    adapters have the same score. This is intended for compatibility with
+    Atropos-style adapter selection.
+
 ``-n COUNT``, ``--times COUNT`` (default: 1)
     Repeat the adapter finding and removal step up to COUNT times.
     :ref:`The default is to search for only one adapter in each read <more-than-one>`.

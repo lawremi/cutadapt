@@ -191,6 +191,7 @@ cdef class Aligner:
         int _mismatch_score
         int _insertion_score
         int _deletion_score
+        str matching_policy
 
     def __cinit__(
         self,
@@ -201,6 +202,7 @@ cdef class Aligner:
         bint wildcard_query=False,
         int indel_cost=1,
         int min_overlap=1,
+        str matching_policy="cutadapt",
     ):
         self.max_error_rate = max_error_rate
         self.start_in_reference = flags & 1
@@ -219,10 +221,23 @@ cdef class Aligner:
         self._insertion_cost = indel_cost
         self._deletion_cost = indel_cost
 
-        self._match_score = MATCH_SCORE
-        self._mismatch_score = MISMATCH_SCORE
-        self._insertion_score = INSERTION_SCORE
-        self._deletion_score = DELETION_SCORE
+        if matching_policy == "cutadapt":
+            self._match_score = MATCH_SCORE
+            self._mismatch_score = MISMATCH_SCORE
+            self._insertion_score = INSERTION_SCORE
+            self._deletion_score = DELETION_SCORE
+        elif matching_policy == "matches":
+            # Atropos-compatible objective: maximize the number of matching
+            # bases while retaining the edit-distance admissibility criterion.
+            self._match_score = 1
+            self._mismatch_score = 0
+            self._insertion_score = 0
+            self._deletion_score = 0
+        else:
+            raise ValueError(
+                "matching_policy must be either 'cutadapt' or 'matches'"
+            )
+        self.matching_policy = matching_policy
 
     def _compute_flags(self):
         cdef int flags = 0
@@ -237,14 +252,14 @@ cdef class Aligner:
         return flags
 
     def __reduce__(self):
-        return (Aligner, (self.reference, self.max_error_rate, self._compute_flags(), self.wildcard_ref, self.wildcard_query, self._insertion_cost, self._min_overlap))
+        return (Aligner, (self.reference, self.max_error_rate, self._compute_flags(), self.wildcard_ref, self.wildcard_query, self._insertion_cost, self._min_overlap, self.matching_policy))
 
     def __repr__(self):
         return (
             f"Aligner(reference='{self.reference}', max_error_rate={self.max_error_rate}, "
             f"flags={self._compute_flags()}, wildcard_ref={self.wildcard_ref}, "
             f"wildcard_query={self.wildcard_query}, indel_cost={self._insertion_cost}, "
-            f"min_overlap={self._min_overlap})"
+            f"min_overlap={self._min_overlap}, matching_policy={self.matching_policy!r})"
         )
 
     def _set_reference(self, str reference):
@@ -610,6 +625,7 @@ cdef class PrefixComparer:
         int max_k  # max. number of errors
         readonly int effective_length
         int min_overlap
+        str matching_policy
 
     # __init__ instead of __cinit__ because we need to override this in SuffixComparer
     def __init__(
@@ -619,6 +635,7 @@ cdef class PrefixComparer:
         bint wildcard_ref=False,
         bint wildcard_query=False,
         int min_overlap=1,
+        str matching_policy="cutadapt",
     ):
         self.wildcard_ref = wildcard_ref
         self.wildcard_query = wildcard_query
@@ -634,6 +651,11 @@ cdef class PrefixComparer:
         if min_overlap < 1:
             raise ValueError("min_overlap must be at least 1")
         self.min_overlap = min_overlap
+        if matching_policy not in ("cutadapt", "matches"):
+            raise ValueError(
+                "matching_policy must be either 'cutadapt' or 'matches'"
+            )
+        self.matching_policy = matching_policy
         if self.wildcard_ref:
             self.reference = translate(reference, IUPAC_TABLE)
         elif self.wildcard_query:
@@ -689,7 +711,10 @@ cdef class PrefixComparer:
 
         if errors > self.max_k or length < self.min_overlap:
             return None
-        score = (length - errors) * MATCH_SCORE + errors * MISMATCH_SCORE
+        if self.matching_policy == "cutadapt":
+            score = (length - errors) * MATCH_SCORE + errors * MISMATCH_SCORE
+        else:
+            score = length - errors
         return (0, length, 0, length, score, errors)
 
 
@@ -702,8 +727,16 @@ cdef class SuffixComparer(PrefixComparer):
         bint wildcard_ref=False,
         bint wildcard_query=False,
         int min_overlap=1,
+        str matching_policy="cutadapt",
     ):
-        super().__init__(reference[::-1], max_error_rate, wildcard_ref, wildcard_query, min_overlap)
+        super().__init__(
+            reference[::-1],
+            max_error_rate,
+            wildcard_ref,
+            wildcard_query,
+            min_overlap,
+            matching_policy,
+        )
 
     def locate(self, str query):
         cdef int n = len(query)
