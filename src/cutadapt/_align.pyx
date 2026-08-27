@@ -18,6 +18,27 @@ DEF MISMATCH_SCORE = -1
 DEF INSERTION_SCORE = -2
 DEF DELETION_SCORE = -2
 
+cdef enum _MatchingPolicy:
+    _CUTADAPT = 0
+    _SEQUENCE_SIMILARITY = 1
+
+
+ctypedef struct _ScoreParameters:
+    int match
+    int mismatch
+    int insertion
+    int deletion
+
+
+cdef int _parse_matching_policy(str matching_policy) except -1:
+    if matching_policy == "cutadapt":
+        return _CUTADAPT
+    elif matching_policy == "sequence-similarity":
+        return _SEQUENCE_SIMILARITY
+    raise ValueError(
+        "matching_policy must be either 'cutadapt' or 'sequence-similarity'"
+    )
+
 
 # structure for a DP matrix entry
 ctypedef struct _Entry:
@@ -187,10 +208,8 @@ cdef class Aligner:
         bytes _reference  # internal, bytes version of reference (possibly translated to a non-ASCII representation)
         readonly int effective_length
         int* n_counts  # n_counts[i] == number of N characters in reference[:i]
-        int _match_score
-        int _mismatch_score
-        int _insertion_score
-        int _deletion_score
+        _MatchingPolicy _policy
+        _ScoreParameters _score
         str matching_policy
 
     def __cinit__(
@@ -221,22 +240,21 @@ cdef class Aligner:
         self._insertion_cost = indel_cost
         self._deletion_cost = indel_cost
 
-        if matching_policy == "cutadapt":
-            self._match_score = MATCH_SCORE
-            self._mismatch_score = MISMATCH_SCORE
-            self._insertion_score = INSERTION_SCORE
-            self._deletion_score = DELETION_SCORE
-        elif matching_policy == "sequence-similarity":
+        self._policy = <_MatchingPolicy>_parse_matching_policy(matching_policy)
+        if self._policy == _CUTADAPT:
+            self._score.match = MATCH_SCORE
+            self._score.mismatch = MISMATCH_SCORE
+            self._score.insertion = INSERTION_SCORE
+            self._score.deletion = DELETION_SCORE
+        elif self._policy == _SEQUENCE_SIMILARITY:
             # Atropos-compatible objective: maximize the number of matching
             # bases while retaining the edit-distance admissibility criterion.
-            self._match_score = 1
-            self._mismatch_score = 0
-            self._insertion_score = 0
-            self._deletion_score = 0
+            self._score.match = 1
+            self._score.mismatch = 0
+            self._score.insertion = 0
+            self._score.deletion = 0
         else:
-            raise ValueError(
-                "matching_policy must be either 'cutadapt' or 'sequence-similarity'"
-            )
+            raise AssertionError("Invalid matching policy enum value")
         self.matching_policy = matching_policy
 
     def _compute_flags(self):
@@ -378,7 +396,7 @@ cdef class Aligner:
         # fill out columns only until 'last'
         if not self.start_in_reference and not self.start_in_query:
             for i in range(m + 1):
-                column[i].score = i * self._deletion_score
+                column[i].score = i * self._score.deletion
                 column[i].cost = max(i, min_n) * self._deletion_cost
                 column[i].origin = 0
         elif self.start_in_reference and not self.start_in_query:
@@ -388,7 +406,7 @@ cdef class Aligner:
                 column[i].origin = min(0, min_n - i)
         elif not self.start_in_reference and self.start_in_query:
             for i in range(m + 1):
-                column[i].score = i * self._deletion_score
+                column[i].score = i * self._score.deletion
                 column[i].cost = i * self._deletion_cost
                 column[i].origin = max(0, min_n - i)
         else:
@@ -427,15 +445,15 @@ cdef class Aligner:
             int best_length
             int origin_increment = 1 if self.start_in_query else 0
             int insertion_cost_increment = 0 if self.start_in_query else self._insertion_cost
-            int insertion_score_increment = 0 if self.start_in_query else self._insertion_score
+            int insertion_score_increment = 0 if self.start_in_query else self._score.insertion
             bint characters_equal
             bint is_acceptable
             int insertion_cost = self._insertion_cost
             int deletion_cost = self._deletion_cost
-            int match_score = self._match_score
-            int mismatch_score = self._mismatch_score
-            int insertion_score = self._insertion_score
-            int deletion_score = self._deletion_score
+            int match_score = self._score.match
+            int mismatch_score = self._score.mismatch
+            int insertion_score = self._score.insertion
+            int deletion_score = self._score.deletion
             # We keep only a single column of the DP matrix in memory.
             # To access the diagonal cell to the upper left,
             # we store it here before overwriting it.
@@ -625,6 +643,8 @@ cdef class PrefixComparer:
         int max_k  # max. number of errors
         readonly int effective_length
         int min_overlap
+        _MatchingPolicy _policy
+        _ScoreParameters _score
         str matching_policy
 
     # __init__ instead of __cinit__ because we need to override this in SuffixComparer
@@ -651,10 +671,19 @@ cdef class PrefixComparer:
         if min_overlap < 1:
             raise ValueError("min_overlap must be at least 1")
         self.min_overlap = min_overlap
-        if matching_policy not in ("cutadapt", "sequence-similarity"):
-            raise ValueError(
-                "matching_policy must be either 'cutadapt' or 'sequence-similarity'"
-            )
+        self._policy = <_MatchingPolicy>_parse_matching_policy(matching_policy)
+        if self._policy == _CUTADAPT:
+            self._score.match = MATCH_SCORE
+            self._score.mismatch = MISMATCH_SCORE
+            self._score.insertion = INSERTION_SCORE
+            self._score.deletion = DELETION_SCORE
+        elif self._policy == _SEQUENCE_SIMILARITY:
+            self._score.match = 1
+            self._score.mismatch = 0
+            self._score.insertion = 0
+            self._score.deletion = 0
+        else:
+            raise AssertionError("Invalid matching policy enum value")
         self.matching_policy = matching_policy
         if self.wildcard_ref:
             self.reference = translate(reference, IUPAC_TABLE)
@@ -711,10 +740,7 @@ cdef class PrefixComparer:
 
         if errors > self.max_k or length < self.min_overlap:
             return None
-        if self.matching_policy == "cutadapt":
-            score = (length - errors) * MATCH_SCORE + errors * MISMATCH_SCORE
-        else:
-            score = length - errors
+        score = (length - errors) * self._score.match + errors * self._score.mismatch
         return (0, length, 0, length, score, errors)
 
 

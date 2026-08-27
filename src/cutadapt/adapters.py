@@ -1273,6 +1273,7 @@ class MultipleAdapters(Matchable):
         super().__init__(name="multiple_adapters")
         self._adapters = adapters
         self.matching_policy = _validate_matching_policy(matching_policy)
+        self._break_score_ties_by_fewer_errors = self.matching_policy == "cutadapt"
 
     def enable_debug(self):
         for a in self._adapters:
@@ -1301,7 +1302,7 @@ class MultipleAdapters(Matchable):
                 best_match is None
                 or match.score > best_match.score
                 or (
-                    self.matching_policy == "cutadapt"
+                    self._break_score_ties_by_fewer_errors
                     and match.score == best_match.score
                     and match.errors < best_match.errors
                 )
@@ -1332,6 +1333,7 @@ class AdapterIndex:
         if not adapters:
             raise ValueError("Adapter list is empty")
         self.matching_policy = _validate_matching_policy(matching_policy)
+        self._break_score_ties_by_fewer_errors = self.matching_policy == "cutadapt"
         for adapter in adapters:
             self._accept(adapter, prefix)
         self._adapters = adapters
@@ -1449,7 +1451,7 @@ class AdapterIndex:
                         if matches < other_matches:
                             continue
                         if (
-                            self.matching_policy == "cutadapt"
+                            self._break_score_ties_by_fewer_errors
                             and other_matches == matches
                             and s not in ambiguous
                         ):
@@ -1468,7 +1470,7 @@ class AdapterIndex:
                             if matches < other_matches:
                                 continue
                             if (
-                                self.matching_policy == "cutadapt"
+                                self._break_score_ties_by_fewer_errors
                                 and other_matches == matches
                                 and s not in ambiguous
                             ):
@@ -1557,7 +1559,7 @@ class AdapterIndex:
                     continue
 
             if m > best_m or (
-                self.matching_policy == "cutadapt" and m == best_m and e < best_e
+                self._break_score_ties_by_fewer_errors and m == best_m and e < best_e
             ):
                 # TODO this could be made to work:
                 # assert best_m == -1
