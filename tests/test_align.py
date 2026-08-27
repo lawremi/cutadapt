@@ -101,9 +101,10 @@ class TestAligner:
         result = aligner.locate("TCGATG")
         assert result[4:] == (5, 1)
 
-    def test_invalid_matching_policy(self):
+    @pytest.mark.parametrize("matching_policy", ["unknown", "cutadapt"])
+    def test_invalid_matching_policy(self, matching_policy):
         with pytest.raises(ValueError, match="matching_policy"):
-            Aligner("ACGT", 0.1, matching_policy="unknown")
+            Aligner("ACGT", 0.1, matching_policy=matching_policy)
 
     def test_align_illumina(self):
         aligner = Aligner("GCCGAACTTCTTAGACTGCCTTAAGGACGT", 0.1, flags=Where.BACK)

@@ -19,7 +19,7 @@ DEF INSERTION_SCORE = -2
 DEF DELETION_SCORE = -2
 
 cdef enum _MatchingPolicy:
-    _CUTADAPT = 0
+    _DEFAULT = 0
     _SEQUENCE_SIMILARITY = 1
 
 
@@ -31,13 +31,32 @@ ctypedef struct _ScoreParameters:
 
 
 cdef int _parse_matching_policy(str matching_policy) except -1:
-    if matching_policy == "cutadapt":
-        return _CUTADAPT
+    if matching_policy == "default":
+        return _DEFAULT
     elif matching_policy == "sequence-similarity":
         return _SEQUENCE_SIMILARITY
     raise ValueError(
-        "matching_policy must be either 'cutadapt' or 'sequence-similarity'"
+        "matching_policy must be either 'default' or 'sequence-similarity'"
     )
+
+
+cdef _ScoreParameters _score_parameters(_MatchingPolicy policy) except *:
+    cdef _ScoreParameters parameters
+    if policy == _DEFAULT:
+        parameters.match = MATCH_SCORE
+        parameters.mismatch = MISMATCH_SCORE
+        parameters.insertion = INSERTION_SCORE
+        parameters.deletion = DELETION_SCORE
+    elif policy == _SEQUENCE_SIMILARITY:
+        # Atropos-compatible objective: maximize the number of matching
+        # bases while retaining the edit-distance admissibility criterion.
+        parameters.match = 1
+        parameters.mismatch = 0
+        parameters.insertion = 0
+        parameters.deletion = 0
+    else:
+        raise AssertionError("Invalid matching policy enum value")
+    return parameters
 
 
 # structure for a DP matrix entry
@@ -221,7 +240,7 @@ cdef class Aligner:
         bint wildcard_query=False,
         int indel_cost=1,
         int min_overlap=1,
-        str matching_policy="cutadapt",
+        str matching_policy="default",
     ):
         self.max_error_rate = max_error_rate
         self.start_in_reference = flags & 1
@@ -241,20 +260,7 @@ cdef class Aligner:
         self._deletion_cost = indel_cost
 
         self._policy = <_MatchingPolicy>_parse_matching_policy(matching_policy)
-        if self._policy == _CUTADAPT:
-            self._score.match = MATCH_SCORE
-            self._score.mismatch = MISMATCH_SCORE
-            self._score.insertion = INSERTION_SCORE
-            self._score.deletion = DELETION_SCORE
-        elif self._policy == _SEQUENCE_SIMILARITY:
-            # Atropos-compatible objective: maximize the number of matching
-            # bases while retaining the edit-distance admissibility criterion.
-            self._score.match = 1
-            self._score.mismatch = 0
-            self._score.insertion = 0
-            self._score.deletion = 0
-        else:
-            raise AssertionError("Invalid matching policy enum value")
+        self._score = _score_parameters(self._policy)
         self.matching_policy = matching_policy
 
     def _compute_flags(self):
@@ -655,7 +661,7 @@ cdef class PrefixComparer:
         bint wildcard_ref=False,
         bint wildcard_query=False,
         int min_overlap=1,
-        str matching_policy="cutadapt",
+        str matching_policy="default",
     ):
         self.wildcard_ref = wildcard_ref
         self.wildcard_query = wildcard_query
@@ -672,18 +678,7 @@ cdef class PrefixComparer:
             raise ValueError("min_overlap must be at least 1")
         self.min_overlap = min_overlap
         self._policy = <_MatchingPolicy>_parse_matching_policy(matching_policy)
-        if self._policy == _CUTADAPT:
-            self._score.match = MATCH_SCORE
-            self._score.mismatch = MISMATCH_SCORE
-            self._score.insertion = INSERTION_SCORE
-            self._score.deletion = DELETION_SCORE
-        elif self._policy == _SEQUENCE_SIMILARITY:
-            self._score.match = 1
-            self._score.mismatch = 0
-            self._score.insertion = 0
-            self._score.deletion = 0
-        else:
-            raise AssertionError("Invalid matching policy enum value")
+        self._score = _score_parameters(self._policy)
         self.matching_policy = matching_policy
         if self.wildcard_ref:
             self.reference = translate(reference, IUPAC_TABLE)
@@ -753,7 +748,7 @@ cdef class SuffixComparer(PrefixComparer):
         bint wildcard_ref=False,
         bint wildcard_query=False,
         int min_overlap=1,
-        str matching_policy="cutadapt",
+        str matching_policy="default",
     ):
         super().__init__(
             reference[::-1],

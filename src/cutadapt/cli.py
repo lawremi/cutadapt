@@ -242,7 +242,7 @@ def get_argument_parser() -> ArgumentParser:
         default=True, dest="match_adapter_wildcards",
         help="Do not interpret IUPAC wildcards in adapters.")
     group.add_argument("--matching-policy", choices=MATCHING_POLICIES,
-        default="cutadapt",
+        default="default",
         help="Adapter alignment and selection policy. 'sequence-similarity' maximizes matching "
             "bases and keeps the first adapter on ties. Default: %(default)s")
     group.add_argument("--action", choices=("trim", "retain", "mask", "lowercase", "crop", "none"),
@@ -1092,7 +1092,7 @@ def make_adapter_cutter(
     reverse_complement: bool,
     add_rc_suffix: bool,
     allow_index: bool,
-    matching_policy: str = "cutadapt",
+    matching_policy: str = "default",
 ):
     if pair_adapters:
         if reverse_complement:

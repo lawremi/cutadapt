@@ -25,13 +25,13 @@ from .kmer_heuristic import create_positions_and_kmers, kmer_probability_analysi
 
 logger = logging.getLogger()
 
-MATCHING_POLICIES = ("cutadapt", "sequence-similarity")
+MATCHING_POLICIES = ("default", "sequence-similarity")
 
 
 def _validate_matching_policy(matching_policy: str) -> str:
     if matching_policy not in MATCHING_POLICIES:
         raise ValueError(
-            "matching_policy must be either 'cutadapt' or 'sequence-similarity'"
+            "matching_policy must be either 'default' or 'sequence-similarity'"
         )
     return matching_policy
 
@@ -568,7 +568,7 @@ class SingleAdapter(Adapter, ABC):
 
         indels: Whether indels are allowed in the alignment.
 
-        matching_policy: The alignment and adapter-selection policy. ``cutadapt``
+        matching_policy: The alignment and adapter-selection policy. ``default``
             is the standard behavior. ``sequence-similarity`` maximizes matching
             bases and keeps the first adapter on ties.
     """
@@ -584,7 +584,7 @@ class SingleAdapter(Adapter, ABC):
         adapter_wildcards: bool = True,
         name: Optional[str] = None,
         indels: bool = True,
-        matching_policy: str = "cutadapt",
+        matching_policy: str = "default",
     ):
         self.name: str = _generate_adapter_name() if name is None else name
         super().__init__(self.name)
@@ -1268,12 +1268,12 @@ class MultipleAdapters(Matchable):
     def __init__(
         self,
         adapters: Sequence[Matchable],
-        matching_policy: str = "cutadapt",
+        matching_policy: str = "default",
     ):
         super().__init__(name="multiple_adapters")
         self._adapters = adapters
         self.matching_policy = _validate_matching_policy(matching_policy)
-        self._break_score_ties_by_fewer_errors = self.matching_policy == "cutadapt"
+        self._break_score_ties_by_fewer_errors = self.matching_policy == "default"
 
     def enable_debug(self):
         for a in self._adapters:
@@ -1328,12 +1328,12 @@ class AdapterIndex:
 
     AdapterIndexDict = Dict[str, Tuple[SingleAdapter, int, int]]
 
-    def __init__(self, adapters, prefix: bool, matching_policy: str = "cutadapt"):
+    def __init__(self, adapters, prefix: bool, matching_policy: str = "default"):
         """All given adapters must be of the same type"""
         if not adapters:
             raise ValueError("Adapter list is empty")
         self.matching_policy = _validate_matching_policy(matching_policy)
-        self._break_score_ties_by_fewer_errors = self.matching_policy == "cutadapt"
+        self._break_score_ties_by_fewer_errors = self.matching_policy == "default"
         for adapter in adapters:
             self._accept(adapter, prefix)
         self._adapters = adapters
@@ -1593,7 +1593,7 @@ class AdapterIndex:
 
 
 class IndexedPrefixAdapters(Matchable):
-    def __init__(self, adapters, matching_policy: str = "cutadapt"):
+    def __init__(self, adapters, matching_policy: str = "default"):
         super().__init__(name="indexed_prefix_adapters")
         self._index = AdapterIndex(
             adapters, prefix=True, matching_policy=matching_policy
@@ -1605,7 +1605,7 @@ class IndexedPrefixAdapters(Matchable):
 
 
 class IndexedSuffixAdapters(Matchable):
-    def __init__(self, adapters, matching_policy: str = "cutadapt"):
+    def __init__(self, adapters, matching_policy: str = "default"):
         super().__init__(name="indexed_suffix_adapters")
         self._index = AdapterIndex(
             adapters, prefix=False, matching_policy=matching_policy

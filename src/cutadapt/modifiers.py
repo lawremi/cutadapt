@@ -94,7 +94,7 @@ class AdapterCutter(SingleEndModifier):
             - "lowercase": Convert the part of the sequence that would have been removed to lowercase
             - "retain": Like "trim", but leave the adapter sequence itself in the read
         index: If True, attempt to create an index to speed up the search (if possible)
-        matching_policy: The adapter alignment and selection policy. ``cutadapt``
+        matching_policy: The adapter alignment and selection policy. ``default``
             is the standard behavior. ``sequence-similarity`` maximizes matching
             bases and keeps the first adapter on ties.
     """
@@ -105,7 +105,7 @@ class AdapterCutter(SingleEndModifier):
         times: int = 1,
         action: Optional[str] = "trim",
         index: bool = True,
-        matching_policy: str = "cutadapt",
+        matching_policy: str = "default",
     ):
         self.times = times
         assert action in ("trim", "mask", "lowercase", "retain", "crop", None)
@@ -422,7 +422,7 @@ class PairedAdapterCutter(PairedEndModifier):
     """
 
     def __init__(
-        self, adapters1, adapters2, action="trim", matching_policy: str = "cutadapt"
+        self, adapters1, adapters2, action="trim", matching_policy: str = "default"
     ):
         """
         adapters1 -- list of Adapters to be removed from R1
@@ -446,6 +446,7 @@ class PairedAdapterCutter(PairedEndModifier):
             logger.debug(" • %s=%s -- %s=%s", a1.name, a1.spec(), a2.name, a2.spec())
         self.action = action
         self.matching_policy = _validate_matching_policy(matching_policy)
+        self._break_score_ties_by_fewer_errors = self.matching_policy == "default"
         self.with_adapters = 0
         self.adapter_statistics = [None, None]
         self.adapter_statistics[0] = {a: a.create_statistics() for a in adapters1}
@@ -506,7 +507,7 @@ class PairedAdapterCutter(PairedEndModifier):
                 best is None
                 or total_score > best_score
                 or (
-                    self.matching_policy == "cutadapt"
+                    self._break_score_ties_by_fewer_errors
                     and total_score == best_score
                     and total_errors < best_errors
                 )
