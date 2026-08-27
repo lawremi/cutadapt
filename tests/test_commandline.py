@@ -33,7 +33,7 @@ def test_matching_policy_option(tmp_path):
     main(
         [
             "--matching-policy",
-            "matches",
+            "sequence-similarity",
             "-a",
             "TTAGACATATCTCCGTCG",
             "-o",

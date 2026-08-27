@@ -243,7 +243,7 @@ def get_argument_parser() -> ArgumentParser:
         help="Do not interpret IUPAC wildcards in adapters.")
     group.add_argument("--matching-policy", choices=MATCHING_POLICIES,
         default="cutadapt",
-        help="Adapter alignment and selection policy. 'matches' maximizes matching "
+        help="Adapter alignment and selection policy. 'sequence-similarity' maximizes matching "
             "bases and keeps the first adapter on ties. Default: %(default)s")
     group.add_argument("--action", choices=("trim", "retain", "mask", "lowercase", "crop", "none"),
         default="trim",

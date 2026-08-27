@@ -25,12 +25,14 @@ from .kmer_heuristic import create_positions_and_kmers, kmer_probability_analysi
 
 logger = logging.getLogger()
 
-MATCHING_POLICIES = ("cutadapt", "matches")
+MATCHING_POLICIES = ("cutadapt", "sequence-similarity")
 
 
 def _validate_matching_policy(matching_policy: str) -> str:
     if matching_policy not in MATCHING_POLICIES:
-        raise ValueError("matching_policy must be either 'cutadapt' or 'matches'")
+        raise ValueError(
+            "matching_policy must be either 'cutadapt' or 'sequence-similarity'"
+        )
     return matching_policy
 
 
@@ -567,8 +569,8 @@ class SingleAdapter(Adapter, ABC):
         indels: Whether indels are allowed in the alignment.
 
         matching_policy: The alignment and adapter-selection policy. ``cutadapt``
-            is the standard behavior. ``matches`` maximizes matching bases and
-            keeps the first adapter on ties.
+            is the standard behavior. ``sequence-similarity`` maximizes matching
+            bases and keeps the first adapter on ties.
     """
 
     allows_partial_matches: bool = True

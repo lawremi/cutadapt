@@ -95,8 +95,8 @@ class AdapterCutter(SingleEndModifier):
             - "retain": Like "trim", but leave the adapter sequence itself in the read
         index: If True, attempt to create an index to speed up the search (if possible)
         matching_policy: The adapter alignment and selection policy. ``cutadapt``
-            is the standard behavior. ``matches`` maximizes matching bases and
-            keeps the first adapter on ties.
+            is the standard behavior. ``sequence-similarity`` maximizes matching
+            bases and keeps the first adapter on ties.
     """
 
     def __init__(

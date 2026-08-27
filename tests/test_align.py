@@ -91,12 +91,12 @@ class TestAligner:
         result = aligner.locate("TCGATGC")
         assert (0, 6, 0, 6, 4, 1) == result
 
-    def test_matches_policy_scores_matching_bases(self):
+    def test_sequence_similarity_policy_scores_matching_bases(self):
         aligner = Aligner(
             "TCGATC",
             1 / 6,
             flags=Where.PREFIX,
-            matching_policy="matches",
+            matching_policy="sequence-similarity",
         )
         result = aligner.locate("TCGATG")
         assert result[4:] == (5, 1)
@@ -132,8 +132,8 @@ def test_poly_t():
     assert result.errors == 0
 
 
-def test_prefix_comparer_matches_policy_scores_matching_bases():
-    comparer = PrefixComparer("TCGATC", 1 / 6, matching_policy="matches")
+def test_prefix_comparer_sequence_similarity_policy_scores_matching_bases():
+    comparer = PrefixComparer("TCGATC", 1 / 6, matching_policy="sequence-similarity")
     assert comparer.locate("TCGATG") == (0, 6, 0, 6, 5, 1)
 
 

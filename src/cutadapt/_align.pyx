@@ -226,7 +226,7 @@ cdef class Aligner:
             self._mismatch_score = MISMATCH_SCORE
             self._insertion_score = INSERTION_SCORE
             self._deletion_score = DELETION_SCORE
-        elif matching_policy == "matches":
+        elif matching_policy == "sequence-similarity":
             # Atropos-compatible objective: maximize the number of matching
             # bases while retaining the edit-distance admissibility criterion.
             self._match_score = 1
@@ -235,7 +235,7 @@ cdef class Aligner:
             self._deletion_score = 0
         else:
             raise ValueError(
-                "matching_policy must be either 'cutadapt' or 'matches'"
+                "matching_policy must be either 'cutadapt' or 'sequence-similarity'"
             )
         self.matching_policy = matching_policy
 
@@ -651,9 +651,9 @@ cdef class PrefixComparer:
         if min_overlap < 1:
             raise ValueError("min_overlap must be at least 1")
         self.min_overlap = min_overlap
-        if matching_policy not in ("cutadapt", "matches"):
+        if matching_policy not in ("cutadapt", "sequence-similarity"):
             raise ValueError(
-                "matching_policy must be either 'cutadapt' or 'matches'"
+                "matching_policy must be either 'cutadapt' or 'sequence-similarity'"
             )
         self.matching_policy = matching_policy
         if self.wildcard_ref:
